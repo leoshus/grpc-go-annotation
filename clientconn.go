@@ -1078,7 +1078,7 @@ func (cc *ClientConn) Close() error {
 	return nil
 }
 
-// addrConn is a network connection to a given address.
+// addrConn给定地址的网络链接
 type addrConn struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -1088,6 +1088,7 @@ type addrConn struct {
 	acbw   balancer.SubConn
 	scopts balancer.NewSubConnOptions
 
+	//当存在可行的传输方式transport被设置。
 	// transport is set when there's a viable transport (note: ac state may not be READY as LB channel
 	// health checking may require server to report healthy to set ac to READY), and is reset
 	// to nil when the current transport should no longer be used to create a stream (e.g. after GoAway
@@ -1096,15 +1097,15 @@ type addrConn struct {
 
 	mu      sync.Mutex
 	curAddr resolver.Address   // The current address.
-	addrs   []resolver.Address // All addresses that the resolver resolved to.
+	addrs   []resolver.Address // resolver解析出的所有地址
 
-	// Use updateConnectivityState for updating addrConn's connectivity state.
+	//使用updateConnectivityState 来更新addrConn的连接状态.
 	state connectivity.State
 
 	backoffIdx   int // Needs to be stateful for resetConnectBackoff.
 	resetBackoff chan struct{}
 
-	channelzID int64 // channelz unique identification number.
+	channelzID int64 // channelz的唯一标识号。
 	czData     *channelzData
 }
 

@@ -871,6 +871,7 @@ func setCallInfoCodec(c *callInfo) error {
 	return nil
 }
 
+// channelzData用来存储ClientConn, addrConn以及Server与channelz相关的数据
 // channelzData is used to store channelz related data for ClientConn, addrConn and Server.
 // These fields cannot be embedded in the original structs (e.g. ClientConn), since to do atomic
 // operation on int64 variable on 32-bit machine, user is responsible to enforce memory alignment.
