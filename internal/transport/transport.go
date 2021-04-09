@@ -533,6 +533,7 @@ type ServerConfig struct {
 
 // NewServerTransport creates a ServerTransport with conn or non-nil error
 // if it fails.
+// NewServerTransport 使用conn创建一个ServerTransport 如果失败则返回非空错误
 func NewServerTransport(protocol string, conn net.Conn, config *ServerConfig) (ServerTransport, error) {
 	return newHTTP2Server(conn, config)
 }

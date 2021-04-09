@@ -529,8 +529,9 @@ const (
 )
 
 // parser reads complete gRPC messages from the underlying reader.
+// parser从底层reader读取完整的gRPC消息。
 type parser struct {
-	// r is the underlying reader.
+	// r 底层 reader.
 	// See the comment on recvMsg for the permissible
 	// error types.
 	r io.Reader
@@ -553,11 +554,19 @@ type parser struct {
 // No other error values or types must be returned, which also means
 // that the underlying io.Reader must not return an incompatible
 // error.
+// recvMsg从流中读取完整的gRPC消息。
+// 它返回消息及其有效载荷（压缩/编码）格式。 调用方拥有返回的msg内存。
+// 如果这里出现错误，可能的值为:
+// 	1. io.EOF 没有剩余消息
+// 	2. io.ErrUnexpectedEOF
+// 	3. transport.ConnectionError类型错误
+// 	4. 来自状态包的错误
+// 无需返回任何其他错误值或类型，这也意味着基础io.Reader不得返回不兼容的错误。
 func (p *parser) recvMsg(maxReceiveMessageSize int) (pf payloadFormat, msg []byte, err error) {
 	if _, err := p.r.Read(p.header[:]); err != nil {
 		return 0, nil, err
 	}
-
+	//获取载荷的格式 压缩还是未压缩
 	pf = payloadFormat(p.header[0])
 	length := binary.BigEndian.Uint32(p.header[1:])
 
@@ -638,6 +647,7 @@ const (
 
 // msgHeader returns a 5-byte header for the message being transmitted and the
 // payload, which is compData if non-nil or data otherwise.
+// msgHeader返回要发送的消息和有效负载的5个字节的报文头，如果非null则返回compData，否则返回data。
 func msgHeader(data, compData []byte) (hdr []byte, payload []byte) {
 	hdr = make([]byte, headerLen)
 	if compData != nil {
@@ -685,6 +695,7 @@ type payloadInfo struct {
 }
 
 func recvAndDecompress(p *parser, s *transport.Stream, dc Decompressor, maxReceiveMessageSize int, payInfo *payloadInfo, compressor encoding.Compressor) ([]byte, error) {
+	//获取pf消息格式是否压缩 d消息数据
 	pf, d, err := p.recvMsg(maxReceiveMessageSize)
 	if err != nil {
 		return nil, err
@@ -701,6 +712,7 @@ func recvAndDecompress(p *parser, s *transport.Stream, dc Decompressor, maxRecei
 	if pf == compressionMade {
 		// To match legacy behavior, if the decompressor is set by WithDecompressor or RPCDecompressor,
 		// use this decompressor as the default.
+		// 兼容老版本 使用WithDecompressor或RPCDecompressor设置decompressor 则使用这个decompressor
 		if dc != nil {
 			d, err = dc.Do(bytes.NewReader(d))
 			size = len(d)
@@ -723,6 +735,8 @@ func recvAndDecompress(p *parser, s *transport.Stream, dc Decompressor, maxRecei
 
 // Using compressor, decompress d, returning data and size.
 // Optionally, if data will be over maxReceiveMessageSize, just return the size.
+// 使用compressor，解压d，并返回数据和大小
+// 可选的，如果数据大于maxReceiveMessageSize，则仅返回大小
 func decompress(compressor encoding.Compressor, d []byte, maxReceiveMessageSize int) ([]byte, int, error) {
 	dcReader, err := compressor.Decompress(bytes.NewReader(d))
 	if err != nil {
@@ -753,10 +767,12 @@ func decompress(compressor encoding.Compressor, d []byte, maxReceiveMessageSize 
 // dc takes precedence over compressor.
 // TODO(dfawley): wrap the old compressor/decompressor using the new API?
 func recv(p *parser, c baseCodec, s *transport.Stream, dc Decompressor, m interface{}, maxReceiveMessageSize int, payInfo *payloadInfo, compressor encoding.Compressor) error {
+	//1. 解压操作 如果需要的话
 	d, err := recvAndDecompress(p, s, dc, maxReceiveMessageSize, payInfo, compressor)
 	if err != nil {
 		return err
 	}
+	//2. 编码反序列化
 	if err := c.Unmarshal(d, m); err != nil {
 		return status.Errorf(codes.Internal, "grpc: failed to unmarshal the received message %v", err)
 	}

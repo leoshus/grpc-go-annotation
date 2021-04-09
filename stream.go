@@ -1414,7 +1414,7 @@ func (ss *serverStream) SetTrailer(md metadata.MD) {
 	}
 	ss.s.SetTrailer(md)
 }
-
+// 发送消息
 func (ss *serverStream) SendMsg(m interface{}) (err error) {
 	defer func() {
 		if ss.trInfo != nil {
@@ -1445,6 +1445,7 @@ func (ss *serverStream) SendMsg(m interface{}) (err error) {
 	}()
 
 	// load hdr, payload, data
+	// 消息头是否压缩 载荷进行序列化、压缩
 	hdr, payload, data, err := prepareMsg(m, ss.codec, ss.cp, ss.comp)
 	if err != nil {
 		return err
@@ -1552,14 +1553,17 @@ func prepareMsg(m interface{}, codec baseCodec, cp Compressor, comp encoding.Com
 	}
 	// The input interface is not a prepared msg.
 	// Marshal and Compress the data at this point
+	//数据序列化
 	data, err = encode(codec, m)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	//数据压缩
 	compData, err := compress(data, cp, comp)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	//消息头
 	hdr, payload = msgHeader(data, compData)
 	return hdr, payload, data, nil
 }

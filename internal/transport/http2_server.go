@@ -126,6 +126,7 @@ type http2Server struct {
 
 // newHTTP2Server constructs a ServerTransport based on HTTP2. ConnectionError is
 // returned if something goes wrong.
+// newHTTP2Server 基于HTTP2构建一个ServerTransport。如果出现问题则返回ConnectionError
 func newHTTP2Server(conn net.Conn, config *ServerConfig) (_ ServerTransport, err error) {
 	writeBufSize := config.WriteBufferSize
 	readBufSize := config.ReadBufferSize
@@ -133,6 +134,7 @@ func newHTTP2Server(conn net.Conn, config *ServerConfig) (_ ServerTransport, err
 	if config.MaxHeaderListSize != nil {
 		maxHeaderListSize = *config.MaxHeaderListSize
 	}
+	//新建数据帧
 	framer := newFramer(conn, writeBufSize, readBufSize, maxHeaderListSize)
 	// Send initial settings as connection preface to client.
 	isettings := []http2.Setting{{
@@ -907,6 +909,7 @@ func (t *http2Server) WriteStatus(s *Stream, st *status.Status) error {
 
 // Write converts the data into HTTP2 data frame and sends it out. Non-nil error
 // is returns if it fails (e.g., framing error, transport error).
+// Write将数据转换为HTTP2的数据帧。如果失败则返回非nil错误(比如，帧错误，传输错误)
 func (t *http2Server) Write(s *Stream, hdr []byte, data []byte, opts *Options) error {
 	if !s.isHeaderSent() { // Headers haven't been written yet.
 		if err := t.WriteHeader(s, nil); err != nil {
@@ -931,8 +934,8 @@ func (t *http2Server) Write(s *Stream, hdr []byte, data []byte, opts *Options) e
 	}
 	df := &dataFrame{
 		streamID:    s.id,
-		h:           hdr,
-		d:           data,
+		h:           hdr,  //是否压缩
+		d:           data, //有效载荷
 		onEachWrite: t.setResetPingStrikes,
 	}
 	if err := s.wq.get(int32(len(hdr) + len(data))); err != nil {
