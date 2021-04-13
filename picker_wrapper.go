@@ -30,8 +30,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// pickerWrapper is a wrapper of balancer.Picker. It blocks on certain pick
-// actions and unblock when there's a picker update.
+// pickerWrapper是balancer.Picker的包装。 它会阻塞在某些pick操作，并在有picker更新时取消阻塞。
 type pickerWrapper struct {
 	mu         sync.Mutex
 	done       bool
@@ -43,7 +42,7 @@ func newPickerWrapper() *pickerWrapper {
 	return &pickerWrapper{blockingCh: make(chan struct{})}
 }
 
-// updatePicker is called by UpdateBalancerState. It unblocks all blocked pick.
+// updatePicker 被UpdateBalancerState调用.它会解除所有阻塞的pick操作
 func (pw *pickerWrapper) updatePicker(p balancer.Picker) {
 	pw.mu.Lock()
 	if pw.done {
@@ -81,6 +80,13 @@ func doneChannelzWrapper(acw *acBalancerWrapper, done func(balancer.DoneInfo)) f
 // - the current picker returns other errors and failfast is false.
 // - the subConn returned by the current picker is not READY
 // When one of these situations happens, pick blocks until the picker gets updated.
+// pick返回用于当前RPC的传输通道。
+// 以下情况可能会导致阻塞
+//  1. 当前没有picker
+//  2. 当前picker返回ErrNoSubConnAvailable
+//  3. 当前picker返回其他错误并且failfast为false
+//  4. 当前picker返回的subConn状态非READY
+// 当其中一个场景发生，pick将阻塞直到picker更新
 func (pw *pickerWrapper) pick(ctx context.Context, failfast bool, info balancer.PickInfo) (transport.ClientTransport, func(balancer.DoneInfo), error) {
 	var ch chan struct{}
 

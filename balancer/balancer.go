@@ -138,43 +138,21 @@ type State struct {
 	Picker Picker
 }
 
-// ClientConn represents a gRPC ClientConn.
-//
-// This interface is to be implemented by gRPC. Users should not need a
-// brand new implementation of this interface. For the situations like
-// testing, the new implementation should embed this interface. This allows
-// gRPC to add new methods to this interface.
 // ClientConn 代表一个gRPC ClientConn
 type ClientConn interface {
-	// NewSubConn is called by balancer to create a new SubConn.
-	// It doesn't block and wait for the connections to be established.
-	// Behaviors of the SubConn can be controlled by options.
 	// NewSubConn被balancer调用来创建一个新的SubConn
 	// 不会阻塞等待连接的建立
 	// SubConn的行为被options控制
 	NewSubConn([]resolver.Address, NewSubConnOptions) (SubConn, error)
-	// RemoveSubConn removes the SubConn from ClientConn.
-	// The SubConn will be shutdown.
 	// RemoveSubConn 将SubConn从ClientConn移除，此SubConn将被关闭
 	RemoveSubConn(SubConn)
-
-	// UpdateState notifies gRPC that the balancer's internal state has
-	// changed.
-	//
-	// gRPC will update the connectivity state of the ClientConn, and will call
-	// Pick on the new Picker to pick new SubConns.
-	// UpdateState 通知gRPCbalancer的内部状态已经变更
+	// UpdateState 通知gRPC balancer的内部状态已经变更
 	// gRPC将会更新ClientConn的连接状态，并将在新的Picker上调用Pick方法选择一个新的SubConn
 	UpdateState(State)
-
-	// ResolveNow is called by balancer to notify gRPC to do a name resolving.
 	// ResolveNow 被balancer调用来通知gRPC进行名称解析
 	ResolveNow(resolver.ResolveNowOptions)
-
-	// Target returns the dial target for this ClientConn.
-	//
-	// Deprecated: Use the Target field in the BuildOptions instead.
 	// Target 返回此ClientConn的拨号目标。
+	// 已废弃: 使用 BuildOptions中的Target字段代替
 	Target() string
 }
 
@@ -202,44 +180,40 @@ type BuildOptions struct {
 	Target resolver.Target
 }
 
-// Builder creates a balancer.
+// Builder 创建一个balancer
 type Builder interface {
-	// Build creates a new balancer with the ClientConn.
+	// Build 为ClientConn创建一个新的balancer
 	Build(cc ClientConn, opts BuildOptions) Balancer
-	// Name returns the name of balancers built by this builder.
-	// It will be used to pick balancers (for example in service config).
+	// Name 返回被此builder构建的balancer的名称
+	// 他将会被用于选择balancer(如在service config配置中)
 	Name() string
 }
 
-// ConfigParser parses load balancer configs.
 // ConfigParser解析负载均衡的配置
 type ConfigParser interface {
-	// ParseConfig parses the JSON load balancer config provided into an
-	// internal form or returns an error if the config is invalid.  For future
-	// compatibility reasons, unknown fields in the config should be ignored.
+	// ParseConfig将提供的JSON负载均衡器配置解析为内部形式，如果配置无效，则返回错误。
+	//// 为了将来的兼容性，应忽略配置中的未知字段。
 	ParseConfig(LoadBalancingConfigJSON json.RawMessage) (serviceconfig.LoadBalancingConfig, error)
 }
 
-// PickInfo contains additional information for the Pick operation.
 // PickInfo 包含Pick操作的附加信息
 type PickInfo struct {
-	// FullMethodName is the method name that NewClientStream() is called
-	// with. The canonical format is /service/Method.
+	// FullMethodName是调用NewClientStream()时的方法名称。 规范格式为/service/Method。
 	FullMethodName string
 	// Ctx is the RPC's context, and may contain relevant RPC-level information
 	// like the outgoing header metadata.
 	Ctx context.Context
 }
 
-// DoneInfo contains additional information for done.
+// DoneInfo 包含done的附加信息
 type DoneInfo struct {
-	// Err is the rpc error the RPC finished with. It could be nil.
+	// Err RPC完成时的rpc错误，可能为nil
 	Err error
 	// Trailer contains the metadata from the RPC's trailer, if present.
 	Trailer metadata.MD
-	// BytesSent indicates if any bytes have been sent to the server.
+	// BytesSent表示是否已将任何字节发送到服务器。
 	BytesSent bool
-	// BytesReceived indicates if any byte has been received from the server.
+	// BytesReceived表示是否已从服务器接收到任何字节。
 	BytesReceived bool
 	// ServerLoad is the load received from server. It's usually sent as part of
 	// trailing metadata.
@@ -261,19 +235,14 @@ var (
 	ErrTransientFailure = errors.New("all SubConns are in TransientFailure")
 )
 
-// PickResult contains information related to a connection chosen for an RPC.
 // PickResult包含与为RPC选择的连接有关的信息。
 type PickResult struct {
-	// SubConn is the connection to use for this pick, if its state is Ready.
-	// If the state is not Ready, gRPC will block the RPC until a new Picker is
-	// provided by the balancer (using ClientConn.UpdateState).  The SubConn
-	// must be one returned by ClientConn.NewSubConn.
+	// SubConn是用于此选择的连接（如果其状态为Ready）。如果状态不是Ready，则gRPC将阻塞RPC，直到balancer提供新的Picker为止（使用ClientConn.UpdateState）。
+	// SubConn必须是ClientConn.NewSubConn返回的。
 	SubConn SubConn
-
-	// Done is called when the RPC is completed.  If the SubConn is not ready,
-	// this will be called with a nil parameter.  If the SubConn is not a valid
-	// type, Done may not be called.  May be nil if the balancer does not wish
-	// to be notified when the RPC completes.
+	// Done 当RPC完成时被调用。如果SubConn非ready，调用此方法参数为nil。
+	// 如果SubConn不是一个有效的类型，Done可能不会被调用。
+	// 如果RPC完成时balancer不希望被通知则Done可能为nil
 	Done func(DoneInfo)
 }
 
@@ -284,80 +253,50 @@ type PickResult struct {
 // default.
 func TransientFailureError(e error) error { return e }
 
-// Picker is used by gRPC to pick a SubConn to send an RPC.
-// Balancer is expected to generate a new picker from its snapshot every time its
-// internal state has changed.
-//
-// The pickers used by gRPC can be updated by ClientConn.UpdateState().
+
 // gRPC使用Picker来选择SubConn以发送RPC。
 // 每当内部状态发生变化时，Balancer就会从其快照中生成一个新的picker。
 // gRPC使用的pickers可以通过ClientConn.UpdateState()进行更新。
 type Picker interface {
-	// Pick returns the connection to use for this RPC and related information.
+	// Pick返回当前RPC使用的连接和相关信息。
+	// Pick不应该被阻塞。如果balancer需要执行I/O操作或任何阻塞或耗时操作来服务此调用，则将返回ErrNoSubConnAvailable
+	// 并且当Picker被更新(使用ClientConn.UpdateState)时，Pick将被gRPC重复调用
+	// 如果返回错误:
 	//
-	// Pick should not block.  If the balancer needs to do I/O or any blocking
-	// or time-consuming work to service this call, it should return
-	// ErrNoSubConnAvailable, and the Pick call will be repeated by gRPC when
-	// the Picker is updated (using ClientConn.UpdateState).
-	//
-	// If an error is returned:
-	//
-	// - If the error is ErrNoSubConnAvailable, gRPC will block until a new
-	//   Picker is provided by the balancer (using ClientConn.UpdateState).
-	//
-	// - If the error is a status error (implemented by the grpc/status
-	//   package), gRPC will terminate the RPC with the code and message
-	//   provided.
-	//
-	// - For all other errors, wait for ready RPCs will wait, but non-wait for
-	//   ready RPCs will be terminated with this error's Error() string and
-	//   status code Unavailable.
+	// - 如果错误为ErrNoSubConnAvailable, gRPC 将会阻塞直到balancer(使用ClientConn.UpdateState)提供一个新的Picker
+	// - 如果错误为一个状态错误(被grpc/status包实现)，gRPC将会使用提供code和message结束RPC
+	// - 对于所有的其他错误，等待就绪的RPC将等待，但是不等待就绪的RPC将终止，并显示此错误的Error()字符串和不可用状态代码。
 	Pick(info PickInfo) (PickResult, error)
 }
 
-// Balancer takes input from gRPC, manages SubConns, and collects and aggregates
-// the connectivity states.
-//
-// It also generates and updates the Picker used by gRPC to pick SubConns for RPCs.
-//
-// UpdateClientConnState, ResolverError, UpdateSubConnState, and Close are
-// guaranteed to be called synchronously from the same goroutine.  There's no
-// guarantee on picker.Pick, it may be called anytime.
 // Balancer从gRPC接收输入，管理SubConns，并收集和聚合连接状态。
 // 它还会生成并更新gRPC用来选择RPC的SubConns的Picker。
 // 确保从同一goroutine同步调用UpdateClientConnState，ResolverError，UpdateSubConnState和Close。 Picker.Pick不能保证，可以随时调用。
 type Balancer interface {
-	// UpdateClientConnState is called by gRPC when the state of the ClientConn
-	// changes.  If the error returned is ErrBadResolverState, the ClientConn
-	// will begin calling ResolveNow on the active name resolver with
-	// exponential backoff until a subsequent call to UpdateClientConnState
-	// returns a nil error.  Any other errors are currently ignored.
+	// UpdateClientConnState 当ClientConn状态变更被gRPC调用。如果返回的错误是ErrBadResolverState，
+	// 则ClientConn将开始以指数退避的方式在active name resolver上调用ResolveNow，
+	// 直到对UpdateClientConnState的后续调用返回错误为nil为止。 当前将忽略任何其他错误。
 	UpdateClientConnState(ClientConnState) error
-	// ResolverError is called by gRPC when the name resolver reports an error.
+	// ResolverError 当name resolver报告错误时被gRPC调用
 	ResolverError(error)
-	// UpdateSubConnState is called by gRPC when the state of a SubConn
-	// changes.
+	// UpdateSubConnState 当其中一个SubConn的状态变更时被gRPC调用
 	UpdateSubConnState(SubConn, SubConnState)
-	// Close closes the balancer. The balancer is not required to call
-	// ClientConn.RemoveSubConn for its existing SubConns.
+	// Close 关闭这个balancer.balancer不需要为其现有的SubConns调用ClientConn.RemoveSubConn。
 	Close()
 }
 
-// SubConnState describes the state of a SubConn.
+// SubConnState 藐视SubConn的状态
 type SubConnState struct {
-	// ConnectivityState is the connectivity state of the SubConn.
+	// ConnectivityState SubConn的连接状态
 	ConnectivityState connectivity.State
-	// ConnectionError is set if the ConnectivityState is TransientFailure,
-	// describing the reason the SubConn failed.  Otherwise, it is nil.
+	// ConnectionError 如果ConnectivityState状态为TransientFailure设置，来描述SubConn失败的原因。否则为nil
 	ConnectionError error
 }
 
-// ClientConnState describes the state of a ClientConn relevant to the
-// balancer.
+// ClientConnState 描述与balancer相关的ClientConn的状态。
 type ClientConnState struct {
 	ResolverState resolver.State
-	// The parsed load balancing configuration returned by the builder's
-	// ParseConfig method, if implemented.
+	// 由builder的ParseConfig方法(如果实现的话)返回的已解析的负载平衡配置。
 	BalancerConfig serviceconfig.LoadBalancingConfig
 }
 

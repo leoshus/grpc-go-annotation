@@ -159,49 +159,26 @@ type BuildOptions struct {
 type State struct {
 	// Addresses是target最新已解析的地址集
 	Addresses []Address
-
 	// ServiceConfig包含解析最新服务配置的结果。 如果为nil，则表示不存在任何服务配置或resolver不提供服务配置。
 	ServiceConfig *serviceconfig.ParseResult
-
 	// Attributes包含由负载平衡策略使用的resolver相关的任意数据。
 	Attributes *attributes.Attributes
 }
 
-// ClientConn contains the callbacks for resolver to notify any updates
-// to the gRPC ClientConn.
-//
-// This interface is to be implemented by gRPC. Users should not need a
-// brand new implementation of this interface. For the situations like
-// testing, the new implementation should embed this interface. This allows
-// gRPC to add new methods to this interface.
 // ClientConn包含用于resolver的回调，以通知对gRPC ClientConn的任何更新。
 // 该接口将由gRPC实现。 用户不需要该接口的全新实现。 对于类似测试的情况，新的实现应嵌入此接口。 这使gRPC可以向该接口添加新方法。
 type ClientConn interface {
 	// UpdateState适当地更新ClientConn的状态。
 	UpdateState(State)
-	// ReportError notifies the ClientConn that the Resolver encountered an
-	// error.  The ClientConn will notify the load balancer and begin calling
-	// ResolveNow on the Resolver with exponential backoff.
 	// ReportError通知ClientConn,解Resolver遇到错误。 ClientConn将通知load balancer，并开始以指数退避的方式在Resolver上调用ResolveNow。
 	ReportError(error)
-	// NewAddress is called by resolver to notify ClientConn a new list
-	// of resolved addresses.
-	// The address list should be the complete list of resolved addresses.
-	//
-	// Deprecated: Use UpdateState instead.
 	// NewAddress被resolver调用，以通知ClientConn新解析出来的地址列表
 	// 这个地址列表应该是完整的解析地址列表
 	// 已废弃: 使用UpdateState方法替换
 	NewAddress(addresses []Address)
-	// NewServiceConfig is called by resolver to notify ClientConn a new
-	// service config. The service config should be provided as a json string.
-	//
-	// Deprecated: Use UpdateState instead.
 	// NewServiceConfig被resolver调用，以通知ClientConn新的服务配置，服务配置应该是json格式的字符串
 	// 已废弃: 使用UpdateState方法替换
 	NewServiceConfig(serviceConfig string)
-	// ParseServiceConfig parses the provided service config and returns an
-	// object that provides the parsed config.
 	// ParseServiceConfig解析提供的服务配置并返回一个提供解析后的配置的对象
 	ParseServiceConfig(serviceConfigJSON string) *serviceconfig.ParseResult
 }

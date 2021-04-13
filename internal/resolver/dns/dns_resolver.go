@@ -106,7 +106,7 @@ func NewBuilder() resolver.Builder {
 
 type dnsBuilder struct{}
 
-// Build creates and starts a DNS resolver that watches the name resolution of the target.
+// Build 创建并启动一个DNS resolver，监听目标target的名称解析
 func (b *dnsBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
 	host, port, err := parseTarget(target.Endpoint, defaultPort)
 	if err != nil {
@@ -173,7 +173,7 @@ type dnsResolver struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	cc       resolver.ClientConn
-	// rn channel is used by ResolveNow() to force an immediate resolution of the target.
+	// rn channel 被ResolveNow()使用来强制立即进行target的名称解析
 	rn chan struct{}
 	// wg is used to enforce Close() to return after the watcher() goroutine has finished.
 	// Otherwise, data race will be possible. [Race Example] in dns_resolver_test we
@@ -181,6 +181,7 @@ type dnsResolver struct {
 	// If Close() doesn't wait for watcher() goroutine finishes, race detector sometimes
 	// will warns lookup (READ the lookup function pointers) inside watcher() goroutine
 	// has data race with replaceNetFunc (WRITE the lookup function pointers).
+	// wg用于强制Close()在watcher()goroutine完成后返回。否则，数据竞争可能发生。
 	wg                   sync.WaitGroup
 	disableServiceConfig bool
 }

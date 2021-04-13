@@ -148,7 +148,7 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 	for _, opt := range opts {
 		opt.apply(&cc.dopts)
 	}
-
+	// 拦截器配置
 	chainUnaryClientInterceptors(cc)
 	chainStreamClientInterceptors(cc)
 
@@ -157,7 +157,7 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 			cc.Close()
 		}
 	}()
-
+	// 设置埋点配置
 	if channelz.IsOn() {
 		if cc.dopts.channelzParentID != 0 {
 			cc.channelzID = channelz.RegisterChannel(&channelzChannel{cc}, cc.dopts.channelzParentID, target)
@@ -175,7 +175,7 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 		}
 		cc.csMgr.channelzID = cc.channelzID
 	}
-
+	// 安全配置检查
 	if !cc.dopts.insecure {
 		if cc.dopts.copts.TransportCredentials == nil && cc.dopts.copts.CredsBundle == nil {
 			return nil, errNoTransportSecurity
@@ -193,7 +193,7 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 			}
 		}
 	}
-
+	// 解析配置的ServiceConfig Json串
 	if cc.dopts.defaultServiceConfigRawJSON != nil {
 		scpr := parseServiceConfig(*cc.dopts.defaultServiceConfigRawJSON)
 		if scpr.Err != nil {
@@ -231,7 +231,7 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 
 	scSet := false
 	if cc.dopts.scChan != nil {
-		// Try to get an initial service config.
+		// 从scChan中监听尝试获取初始化的serviceConfig
 		select {
 		case sc, ok := <-cc.dopts.scChan:
 			if ok {
@@ -242,18 +242,17 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 		default:
 		}
 	}
+	// 默认使用指数退避
 	if cc.dopts.bs == nil {
 		cc.dopts.bs = backoff.DefaultExponential
 	}
 
-	// Determine the resolver to use.
+	// 根据target名称的secheme决定使用的resolver
 	cc.parsedTarget = grpcutil.ParseTarget(cc.target, cc.dopts.copts.Dialer != nil)
 	channelz.Infof(logger, cc.channelzID, "parsed scheme: %q", cc.parsedTarget.Scheme)
 	resolverBuilder := cc.getResolver(cc.parsedTarget.Scheme)
 	if resolverBuilder == nil {
-		// If resolver builder is still nil, the parsed target's scheme is
-		// not registered. Fallback to default resolver and set Endpoint to
-		// the original target.
+		// 如果resolver builder仍为nil，则已解析目标的scheme未注册。 回退到默认resolver passthrough，并将endpoint设置为原始目标。
 		channelz.Infof(logger, cc.channelzID, "scheme %q not registered, fallback to default scheme", cc.parsedTarget.Scheme)
 		cc.parsedTarget = resolver.Target{
 			Scheme:   resolver.GetDefaultScheme(),
@@ -409,8 +408,9 @@ func getChainStreamer(interceptors []StreamClientInterceptor, curr int, finalStr
 	}
 }
 
-// connectivityStateManager keeps the connectivity.State of ClientConn.
-// This struct will eventually be exported so the balancers can access it.
+
+// ConnectivityStateManager持有ClientConn的Connectivity.State。
+// 该struct最终将被导出，以便balancer可以访问它。
 type connectivityStateManager struct {
 	mu         sync.Mutex
 	state      connectivity.State
@@ -418,9 +418,8 @@ type connectivityStateManager struct {
 	channelzID int64
 }
 
-// updateState updates the connectivity.State of ClientConn.
-// If there's a change it notifies goroutines waiting on state change to
-// happen.
+// updateState更新clientConn的连接状态。
+// 如果有变更，它将通知等待在state上的goroutines有变更发生。
 func (csm *connectivityStateManager) updateState(state connectivity.State) {
 	csm.mu.Lock()
 	defer csm.mu.Unlock()
@@ -518,13 +517,9 @@ type ClientConn struct {
 	lastConnectionError error
 }
 
-// WaitForStateChange waits until the connectivity.State of ClientConn changes from sourceState or
-// ctx expires. A true value is returned in former case and false in latter.
-//
-// Experimental
-//
-// Notice: This API is EXPERIMENTAL and may be changed or removed in a
-// later release.
+
+// WaitForStateChange等待，直到ClientConn的connectivity.State从源状态更改或ctx过期。 在前一种情况下返回true值，在后一种情况下返回false。
+// 注意:这是一个实验性质的API,未来可能会更改或移除
 func (cc *ClientConn) WaitForStateChange(ctx context.Context, sourceState connectivity.State) bool {
 	ch := cc.csMgr.getNotifyChan()
 	if cc.csMgr.getState() != sourceState {
@@ -742,9 +737,8 @@ func (cc *ClientConn) handleSubConnStateChange(sc balancer.SubConn, s connectivi
 	cc.mu.Unlock()
 }
 
-// newAddrConn creates an addrConn for addrs and adds it to cc.conns.
-//
-// Caller needs to make sure len(addrs) > 0.
+// newAddrConn 为addrs创建一个addrConn并添加到cc.conns
+// 调用者需要确保len(addrs) > 0.
 func (cc *ClientConn) newAddrConn(addrs []resolver.Address, opts balancer.NewSubConnOptions) (*addrConn, error) {
 	ac := &addrConn{
 		state:        connectivity.Idle,
