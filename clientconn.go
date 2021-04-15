@@ -408,7 +408,6 @@ func getChainStreamer(interceptors []StreamClientInterceptor, curr int, finalStr
 	}
 }
 
-
 // ConnectivityStateManager持有ClientConn的Connectivity.State。
 // 该struct最终将被导出，以便balancer可以访问它。
 type connectivityStateManager struct {
@@ -516,7 +515,6 @@ type ClientConn struct {
 	lceMu               sync.Mutex // protects lastConnectionError
 	lastConnectionError error
 }
-
 
 // WaitForStateChange等待，直到ClientConn的connectivity.State从源状态更改或ctx过期。 在前一种情况下返回true值，在后一种情况下返回false。
 // 注意:这是一个实验性质的API,未来可能会更改或移除
@@ -630,6 +628,7 @@ func (cc *ClientConn) updateResolverState(s resolver.State, err error) error {
 	}
 
 	var ret error
+	// 如果禁用来服务配置或服务配置为空,使用默认服务配置
 	if cc.dopts.disableServiceConfig || s.ServiceConfig == nil {
 		cc.maybeApplyDefaultServiceConfig(s.Addresses)
 		// TODO: do we need to apply a failing LB policy if there is no
@@ -672,7 +671,7 @@ func (cc *ClientConn) updateResolverState(s resolver.State, err error) error {
 	bw := cc.balancerWrapper
 	cc.mu.Unlock()
 	if cbn != grpclbName {
-		// Filter any grpclb addresses since we don't have the grpclb balancer.
+		// 过滤掉grpclb地址，因为我们没有grpclb balancer
 		for i := 0; i < len(s.Addresses); {
 			if s.Addresses[i].Type == resolver.GRPCLB {
 				copy(s.Addresses[i:], s.Addresses[i+1:])
@@ -690,24 +689,21 @@ func (cc *ClientConn) updateResolverState(s resolver.State, err error) error {
 	return ret
 }
 
-// switchBalancer starts the switching from current balancer to the balancer
-// with the given name.
-//
-// It will NOT send the current address list to the new balancer. If needed,
-// caller of this function should send address list to the new balancer after
-// this function returns.
-//
-// Caller must hold cc.mu.
+// switchBalancer 开始将当前balancer切换到给定名称的balancer
+// 他不会发送当前地址列表给新的balancer。如果需要,此函数的调用方应该在此函数返回后发送地址列表给新的balancer
+// 调用方必须持有cc.mu
 func (cc *ClientConn) switchBalancer(name string) {
 	if strings.EqualFold(cc.curBalancerName, name) {
 		return
 	}
 
 	channelz.Infof(logger, cc.channelzID, "ClientConn switching balancer to %q", name)
+	// 使用参数指定的balancerBuilder
 	if cc.dopts.balancerBuilder != nil {
 		channelz.Info(logger, cc.channelzID, "ignoring balancer switching: Balancer DialOption used instead")
 		return
 	}
+	// 关闭之前的balancer
 	if cc.balancerWrapper != nil {
 		cc.balancerWrapper.close()
 	}
@@ -819,8 +815,7 @@ func (cc *ClientConn) incrCallsFailed() {
 	atomic.AddInt64(&cc.czData.callsFailed, 1)
 }
 
-// connect starts creating a transport.
-// It does nothing if the ac is not IDLE.
+// connect 开始创建一个通道,如果ac不为IDLE,则啥也不做
 // TODO(bar) Move this to the addrConn section.
 func (ac *addrConn) connect() error {
 	ac.mu.Lock()
@@ -832,12 +827,12 @@ func (ac *addrConn) connect() error {
 		ac.mu.Unlock()
 		return nil
 	}
-	// Update connectivity state within the lock to prevent subsequent or
-	// concurrent calls from resetting the transport more than once.
+
+	// 在锁中更新的连接状态，以防止后续或并发调用多次重置传输。
 	ac.updateConnectivityState(connectivity.Connecting, nil)
 	ac.mu.Unlock()
 
-	// Start a goroutine connecting to the server asynchronously.
+	// 启动一个goroutine异步连接服务器
 	go ac.resetTransport()
 	return nil
 }
@@ -960,12 +955,12 @@ func (cc *ClientConn) applyServiceConfigAndBalancer(sc *ServiceConfig, configSel
 	}
 
 	if cc.dopts.balancerBuilder == nil {
-		// Only look at balancer types and switch balancer if balancer dial
-		// option is not set.
+		// 如果未设置balancer dial选项，则仅查看balancer类型并切换balancer
 		var newBalancerName string
-		if cc.sc != nil && cc.sc.lbConfig != nil {
+		if cc.sc != nil && cc.sc.lbConfig != nil { // service config关于load balance配置不为空
 			newBalancerName = cc.sc.lbConfig.name
 		} else {
+			// 解析的地址中只要其中一个为grpclb 则使用grpclb
 			var isGRPCLB bool
 			for _, a := range addrs {
 				if a.Type == resolver.GRPCLB {
@@ -983,8 +978,7 @@ func (cc *ClientConn) applyServiceConfigAndBalancer(sc *ServiceConfig, configSel
 		}
 		cc.switchBalancer(newBalancerName)
 	} else if cc.balancerWrapper == nil {
-		// Balancer dial option was set, and this is the first time handling
-		// resolved addresses. Build a balancer with dopts.balancerBuilder.
+		// Balancer dial选项已经设置，这里第一次处理解析的地址。使用dopts.balancerBuilder构建一个balancer
 		cc.curBalancerName = cc.dopts.balancerBuilder.Name()
 		cc.balancerWrapper = newCCBalancerWrapper(cc, cc.dopts.balancerBuilder, cc.balancerBuildOpts)
 	}

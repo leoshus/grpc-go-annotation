@@ -114,12 +114,9 @@ func (b *baseBalancer) UpdateClientConnState(s balancer.ClientConnState) error {
 		aNoAttrs := a
 		aNoAttrs.Attributes = nil
 		addrsSet[aNoAttrs] = struct{}{}
+		// a是一个不存在于b.subConns中的新地址
 		if sc, ok := b.subConns[aNoAttrs]; !ok {
-			// a is a new address (not existing in b.subConns).
-			//
-			// When creating SubConn, the original address with attributes is
-			// passed through. So that connection configurations in attributes
-			// (like creds) will be used.
+			// 当创建SubConn时,原始地址带的属性会被传递。所以属性中的连接配置(如creds)将被使用
 			sc, err := b.cc.NewSubConn([]resolver.Address{a}, balancer.NewSubConnOptions{HealthCheckEnabled: b.config.HealthCheck})
 			if err != nil {
 				logger.Warningf("base.baseBalancer: failed to create new SubConn: %v", err)

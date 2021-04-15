@@ -93,8 +93,7 @@ func (ccr *ccResolverWrapper) close() {
 	ccr.resolverMu.Unlock()
 }
 
-// poll begins or ends asynchronous polling of the resolver based on whether
-// err is ErrBadResolverState.
+// poll根据err是否是ErrBadResolverState来开始或结束resolver的异步轮询。
 func (ccr *ccResolverWrapper) poll(err error) {
 	ccr.pollingMu.Lock()
 	defer ccr.pollingMu.Unlock()

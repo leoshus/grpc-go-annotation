@@ -67,6 +67,7 @@ func newCCBalancerWrapper(cc *ClientConn, b balancer.Builder, bopts balancer.Bui
 func (ccb *ccBalancerWrapper) watcher() {
 	for {
 		select {
+		// 由 ccBalancerWrapper.handleSubConnStateChange 触发
 		case t := <-ccb.scBuffer.Get():
 			ccb.scBuffer.Load()
 			if ccb.done.HasFired() {
@@ -76,7 +77,7 @@ func (ccb *ccBalancerWrapper) watcher() {
 			su := t.(*scStateUpdate)
 			ccb.balancer.UpdateSubConnState(su.sc, balancer.SubConnState{ConnectivityState: su.state, ConnectionError: su.err})
 			ccb.balancerMu.Unlock()
-		case <-ccb.done.Done():
+		case <-ccb.done.Done()://监听关闭balancer事件
 		}
 
 		if ccb.done.HasFired() {
